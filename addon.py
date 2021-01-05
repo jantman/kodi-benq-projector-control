@@ -30,9 +30,8 @@ class ScreenSaverWatcher(xbmc.Monitor):
         xbmc.log('ScreenSaverWatcher.onDPMSDeactivated() called', LOGLEVEL)
 
 
-mon = xbmc.Monitor()
-ScreenSaverWatcher()
-while not mon.abortRequested():
-        if mon.waitForAbort(10):
-            xbmc.log("ScreenSaverWatcher is exiting at %s" % time.time(), level=xbmc.LOGNOTICE)
-            break
+watcher = ScreenSaverWatcher()
+while not watcher.abortRequested():
+    if watcher.waitForAbort(10):
+        xbmc.log("ScreenSaverWatcher is exiting at %s" % time.time(), level=xbmc.LOGNOTICE)
+        break

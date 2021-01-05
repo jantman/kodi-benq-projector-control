@@ -11,3 +11,6 @@ This project is made up of two distinct pieces:
 
 ## Installation
 
+1. ``cd`` to your kodi addon directory, i.e. ``~/.kodi/addons``
+2. ``git clone https://github.com/jantman/kodi-benq-projector-control.git script.benq-projector-control``
+3. Restart kodi

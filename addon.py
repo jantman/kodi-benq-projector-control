@@ -8,7 +8,7 @@ import xbmc
 import xbmcaddon
 
 _addon_ = xbmcaddon.Addon()
-LOGLEVEL = xbmc.LOGINFO
+LOGLEVEL = xbmc.LOGWARNING
 
 
 class ScreenSaverWatcher(xbmc.Monitor):

@@ -6,6 +6,7 @@ https://github.com/jantman/kodi-benq-projector-control
 """
 import xbmc
 import xbmcaddon
+import time
 
 _addon_ = xbmcaddon.Addon()
 LOGLEVEL = xbmc.LOGWARNING
@@ -29,6 +30,9 @@ class ScreenSaverWatcher(xbmc.Monitor):
         xbmc.log('ScreenSaverWatcher.onDPMSDeactivated() called', LOGLEVEL)
 
 
+mon = xbmc.Monitor()
 ScreenSaverWatcher()
-while not xbmc.abortRequested:
-    xbmc.sleep(500)
+while not mon.abortRequested():
+        if mon.waitForAbort(10):
+            break
+        xbmc.log("Addon is exiting %s" % time.time(), level=xbmc.LOGNOTICE)

@@ -12,5 +12,7 @@ This project is made up of two distinct pieces:
 ## Installation
 
 1. ``cd`` to your kodi addon directory, i.e. ``~/.kodi/addons``
-2. ``git clone https://github.com/jantman/kodi-benq-projector-control.git service.benq-projector-control``
-3. Restart kodi
+1. ``git clone https://github.com/jantman/kodi-benq-projector-control.git service.benq-projector-control``
+1. ``ln -s /home/pi/.kodi/addons/service.benq-projector-control/benqd.service /etc/systemd/system/benqd.service``
+1. ``systemctl reload-daemon && systemctl start benqd.service``
+1. Restart kodi

@@ -1,0 +1,17 @@
+# https://github.com/jantman/kodi-benq-projector-control
+[Unit]
+Description=benqd
+After=network.target
+
+[Service]
+Type=simple
+Restart=always
+StartLimitInterval=0
+StartLimitBurst=999
+TimeoutStartSec=infinity
+User=root
+ExecStart=/home/pi/.kodi/addons/service.benq-projector-control/benqd.py
+WorkingDirectory=/tmp
+
+[Install]
+WantedBy=multi-user.target

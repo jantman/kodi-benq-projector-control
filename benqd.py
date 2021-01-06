@@ -8,6 +8,7 @@ FLASK_DEBUG - set to 'true' to enable Flask debugging
 FLASK_PORT - defaults to 80
 PROJECTOR_DEVICE - defaults to '/dev/ttyUSB0'
 SERIAL_BAUDRATE - defaults to 115200
+OFF_DELAY - how many seconds after screensaver to turn off projector; default 300
 
 The API is as follows:
 
@@ -24,6 +25,7 @@ import struct
 import serial
 import logging
 import os
+from threading import Timer
 
 from flask import Flask, request, jsonify
 
@@ -34,6 +36,8 @@ logging.basicConfig(
 
 app = Flask(__name__)
 app.logger.propagate = True
+
+OFF_DELAY = int(os.environ.get('OFF_DELAY', '300'))
 
 
 class ProjectorCommunicator:
@@ -121,6 +125,57 @@ def get_status():
             'success': False,
             'message': 'Exception getting power state: %s' % ex
         }
+
+
+def screensaver_timer_callback():
+    app.logger.info('Got off timer callback')
+    try:
+        COMM.turn_off()
+        app.logger.info('Projector turned off')
+    except Exception as ex:
+        app.logger.exception(
+            'Exception turning off from timer: %s', ex, exc_info=True
+        )
+
+
+def get_timer():
+    return Timer(OFF_DELAY, screensaver_timer_callback)
+
+
+OFF_TIMER = get_timer()
+
+
+@app.route('/screensaver', methods=['GET', 'POST'])
+def handle_screensaver():
+    global OFF_TIMER
+    app.logger.info(
+        'Got screensaver request with values: %s' % dict(request.form)
+    )
+    if request.method != 'POST':
+        return jsonify({'timer_running': OFF_TIMER.is_alive()})
+    data = request.get_json()
+    app.logger.info(
+        'Got /screensaver POST from %s: %s', request.remote_addr, data
+    )
+    if data.get('screensaver_on', False) is True:
+        # screensaver was just turned on
+        if not OFF_TIMER.is_alive():
+            app.logger.info(
+                'Start screensaver timer for %d seconds', OFF_DELAY
+            )
+            del OFF_TIMER
+            OFF_TIMER = get_timer()
+            OFF_TIMER.start()
+            return jsonify({'message': 'timer started'}), 202
+        else:
+            app.logger.info(
+                'Screensaver started, but timer already running'
+            )
+            return jsonify({'message': 'timer already running'}), 200
+    # else the screensaver has been turned off
+    app.logger.info('Stop screensaver timer')
+    OFF_TIMER.cancel()
+    return jsonify({'message': 'timer stopped'}), 200
 
 
 @app.route('/', methods=['GET', 'POST'])

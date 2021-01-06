@@ -20,26 +20,34 @@ class ScreenSaverWatcher(xbmc.Monitor):
         xbmc.log('ScreenSaverWatcher initialized', LOGLEVEL)
 
     def onScreensaverActivated(self):
-        xbmc.log('ScreenSaverWatcher.onScreensaverActivated() called', LOGLEVEL)
+        xbmc.log(
+            'ScreenSaverWatcher.onScreensaverActivated() called', LOGLEVEL
+        )
         r = requests.post(
             'http://127.0.0.1/screensaver', json={'screensaver_on': True}
         )
         xbmc.log(
-            'Screensaver post responded HTTP %s: %s', r.status_code, r.text
+            'Screensaver post responded HTTP %s: %s' % (r.status_code, r.text),
+            LOGLEVEL
         )
 
     def onScreensaverDeactivated(self):
-        xbmc.log('ScreenSaverWatcher.onScreensaverDeactivated() called', LOGLEVEL)
+        xbmc.log(
+            'ScreenSaverWatcher.onScreensaverDeactivated() called', LOGLEVEL
+        )
         r = requests.post(
             'http://127.0.0.1/screensaver', json={'screensaver_on': False}
         )
         xbmc.log(
-            'Screensaver post responded HTTP %s: %s', r.status_code, r.text
+            'Screensaver post responded HTTP %s: %s' % (r.status_code, r.text),
+            LOGLEVEL
         )
 
 
 watcher = ScreenSaverWatcher()
 while not watcher.abortRequested():
     if watcher.waitForAbort(10):
-        xbmc.log("ScreenSaverWatcher is exiting at %s" % time.time(), level=xbmc.LOGNOTICE)
+        xbmc.log(
+            "ScreenSaverWatcher is exiting at %s" % time.time(), xbmc.LOGNOTICE
+        )
         break

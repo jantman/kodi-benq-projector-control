@@ -1,5 +1,7 @@
 # kodi-benq-projector-control
 
+[![Project Status: Active – The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
+
 Kodi addon and separate daemon to control and automatically shut off BenQ RS232 projectors
 
 This project is made up of two distinct pieces:

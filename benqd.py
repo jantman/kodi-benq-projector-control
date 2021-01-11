@@ -85,6 +85,12 @@ class ProjectorCommunicator:
 
     def _send_command(self, cmd):
         # returns a STRING
+        # We reset the input and output buffers first, in case the port
+        # has gotten into a weird state where, for some reason, there is
+        # data waiting.
+        app.logger.debug('Resetting input and output buffers')
+        self.conn.reset_input_buffer()
+        self.conn.reset_output_buffer()
         app.logger.info('Send command: %s', cmd)
         self.conn.write(cmd)
         # first line should echo the command back

@@ -37,7 +37,7 @@ logging.basicConfig(
 app = Flask(__name__)
 app.logger.propagate = True
 
-OFF_DELAY = int(os.environ.get('OFF_DELAY', '300'))
+OFF_DELAY = int(os.environ.get('OFF_DELAY', '600'))
 
 
 class ProjectorCommunicator:

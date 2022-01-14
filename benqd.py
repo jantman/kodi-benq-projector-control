@@ -5,7 +5,7 @@ BenQ RS-232 projector control daemon
 Configuration is via environment variables:
 
 FLASK_DEBUG - set to 'true' to enable Flask debugging
-FLASK_PORT - defaults to 80
+FLASK_PORT - defaults to 8080
 PROJECTOR_DEVICE - defaults to '/dev/ttyUSB0'
 SERIAL_BAUDRATE - defaults to 115200
 OFF_DELAY - how many seconds after screensaver to turn off projector; default 300
@@ -230,6 +230,6 @@ def handle():
 if __name__ == '__main__':
     debug = os.environ.get('FLASK_DEBUG', '') == 'true'
     app.run(
-        host="0.0.0.0", port=int(os.environ.get('FLASK_PORT', '80')),
+        host="0.0.0.0", port=int(os.environ.get('FLASK_PORT', '8080')),
         debug=debug
     )

@@ -24,7 +24,7 @@ class ScreenSaverWatcher(xbmc.Monitor):
             'ScreenSaverWatcher.onScreensaverActivated() called', LOGLEVEL
         )
         r = requests.post(
-            'http://127.0.0.1/screensaver', json={'screensaver_on': True}
+            'http://127.0.0.1:8080/screensaver', json={'screensaver_on': True}
         )
         xbmc.log(
             'Screensaver post responded HTTP %s: %s' % (r.status_code, r.text),
@@ -36,7 +36,7 @@ class ScreenSaverWatcher(xbmc.Monitor):
             'ScreenSaverWatcher.onScreensaverDeactivated() called', LOGLEVEL
         )
         r = requests.post(
-            'http://127.0.0.1/screensaver', json={'screensaver_on': False}
+            'http://127.0.0.1:8080/screensaver', json={'screensaver_on': False}
         )
         xbmc.log(
             'Screensaver post responded HTTP %s: %s' % (r.status_code, r.text),

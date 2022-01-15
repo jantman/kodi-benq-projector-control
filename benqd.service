@@ -10,7 +10,7 @@ StartLimitInterval=0
 StartLimitBurst=999
 TimeoutStartSec=infinity
 User=root
-ExecStart=/home/pi/.kodi/addons/service.benq-projector-control/benqd.py
+ExecStart=/home/osmc/.kodi/addons/service.benq-projector-control/benqd.py
 WorkingDirectory=/tmp
 
 [Install]

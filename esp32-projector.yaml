@@ -1,0 +1,251 @@
+# BenQ Projector Control via ESPHome
+# 
+# Hardware Setup:
+# - ESP32 Development Board
+# - RS232 to TTL converter (e.g., MAX3232 module)
+# - Connect ESP32 GPIO17 (TX) to RS232 module TX
+# - Connect ESP32 GPIO16 (RX) to RS232 module RX  
+# - Connect RS232 module to projector's RS232 control port
+# - Power the RS232 module appropriately (usually 3.3V or 5V)
+#
+# Features:
+# - Switch to turn projector on/off
+# - Binary sensor showing current projector power state
+# - Periodic status polling every 30 seconds
+# - Error tracking and debugging sensors
+# - Compatible with Home Assistant
+#
+# Based on the Python benqd.py script, this configuration provides
+# the same core functionality for controlling BenQ projectors via RS232
+
+esphome:
+  name: esp32-projector
+  friendly_name: esp32-projector
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+  level: DEBUG
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  password: !secret ota_password
+  platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  domain: !secret domain_name
+  reboot_timeout: "1min"
+
+sensor:
+  - platform: uptime
+    name: Uptime
+  - platform: wifi_signal # Reports the WiFi signal strength/RSSI in dB
+    name: "WiFi Signal dB"
+    id: wifi_signal_db
+    update_interval: 60s
+    entity_category: "diagnostic"
+  - platform: copy # Reports the WiFi signal strength in %
+    source_id: wifi_signal_db
+    name: "WiFi Signal Percent"
+    filters:
+      - lambda: return min(max(2 * (x + 100.0), 0.0), 100.0);
+    unit_of_measurement: "Signal %"
+    entity_category: "diagnostic"
+    device_class: ""
+  - platform: internal_temperature
+    name: "esp32_internal_temperature"
+  - platform: template
+    name: "Projector Communication Errors"
+    id: projector_comm_errors
+    accuracy_decimals: 0
+    entity_category: diagnostic
+
+button:
+  - platform: restart
+    name: "Reboot ESP"
+  - platform: template
+    name: "Query Projector State"
+    id: query_button
+    on_press:
+      - script.execute: query_projector_power
+
+# UART configuration for BenQ projector communication
+uart:
+  id: uart_bus
+  tx_pin: GPIO17  # Connect to RS232 adapter TX
+  rx_pin: GPIO16  # Connect to RS232 adapter RX
+  baud_rate: 115200
+  debug:
+    direction: BOTH
+    dummy_receiver: false
+
+# Global variables to track projector state
+globals:
+  - id: projector_power_on
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: last_command_time
+    type: unsigned long
+    restore_value: false
+    initial_value: '0'
+
+# Binary sensor to expose projector power state to Home Assistant
+binary_sensor:
+  - platform: template
+    name: "Projector Power State"
+    id: projector_power_state
+    device_class: power
+    lambda: |-
+      return id(projector_power_on);
+  - platform: template
+    name: "Projector Communication OK"
+    id: projector_comm_ok
+    device_class: connectivity
+    lambda: |-
+      // Consider communication OK if we've had a successful response in the last 90 seconds
+      static unsigned long last_success = 0;
+      if (id(projector_last_response).state != "" && id(projector_last_response).state.find("*POW=") != std::string::npos) {
+        last_success = millis();
+        return true;
+      }
+      return (millis() - last_success) < 90000;  // 90 seconds
+
+# Switch to control projector power
+switch:
+  - platform: template
+    name: "Projector Power"
+    id: projector_power_switch
+    optimistic: false
+    lambda: |-
+      return id(projector_power_on);
+    turn_on_action:
+      - uart.write:
+          id: uart_bus
+          data: [0x0D, 0x2A, 0x70, 0x6F, 0x77, 0x3D, 0x6F, 0x6E, 0x23, 0x0D]  # \r*pow=on#\r
+      - globals.set:
+          id: last_command_time
+          value: !lambda 'return millis();'
+      - delay: 100ms
+      - script.execute: read_projector_response_enhanced
+    turn_off_action:
+      - uart.write:
+          id: uart_bus
+          data: [0x0D, 0x2A, 0x70, 0x6F, 0x77, 0x3D, 0x6F, 0x66, 0x66, 0x23, 0x0D]  # \r*pow=off#\r
+      - globals.set:
+          id: last_command_time
+          value: !lambda 'return millis();'
+      - delay: 100ms
+      - script.execute: read_projector_response_enhanced
+
+# Script to read and parse projector response
+script:
+  - id: query_projector_power
+    then:
+      - uart.write:
+          id: uart_bus
+          data: [0x0D, 0x2A, 0x70, 0x6F, 0x77, 0x3D, 0x3F, 0x23, 0x0D]  # \r*pow=?#\r
+      - globals.set:
+          id: last_command_time
+          value: !lambda 'return millis();'
+      - delay: 100ms
+      - script.execute: read_projector_response_enhanced
+
+# Interval to periodically query projector state
+interval:
+  - interval: 30s
+    then:
+      - script.execute: query_projector_power
+
+# Text sensor to show last projector response (for debugging)
+text_sensor:
+  - platform: template
+    name: "Projector Last Response"
+    id: projector_last_response
+    entity_category: diagnostic
+
+# Enhanced script with better error handling and logging
+script:
+  - id: read_projector_response_enhanced
+    then:
+      - delay: 200ms  # Wait for response
+      - lambda: |-
+          std::string response = "";
+          char c;
+          unsigned long start_time = millis();
+          static int error_count = 0;
+          
+          // Read response with timeout
+          while (millis() - start_time < 2000) {  # 2 second timeout
+            if (id(uart_bus).available()) {
+              id(uart_bus).read_byte(&c);
+              if (c == '\r' || c == '\n') {
+                if (!response.empty()) break;
+                continue;
+              }
+              response += c;
+              if (c == '#') break;  # End of BenQ response
+            }
+            delay(10);
+          }
+          
+          ESP_LOGD("benq_projector", "Raw response: %s", response.c_str());
+          id(projector_last_response).publish_state(response);
+          
+          # Parse response and handle errors
+          if (response.empty()) {
+            ESP_LOGW("benq_projector", "No response from projector - timeout");
+            error_count++;
+            id(projector_comm_errors).publish_state(error_count);
+          } else if (response.find("*POW=ON#") != std::string::npos) {
+            ESP_LOGI("benq_projector", "Projector is ON");
+            id(projector_power_on) = true;
+            id(projector_power_state).publish_state(true);
+          } else if (response.find("*POW=OFF#") != std::string::npos) {
+            ESP_LOGI("benq_projector", "Projector is OFF");
+            id(projector_power_on) = false;
+            id(projector_power_state).publish_state(false);
+          } else {
+            ESP_LOGW("benq_projector", "Unknown response: %s", response.c_str());
+            error_count++;
+            id(projector_comm_errors).publish_state(error_count);
+          }
+  - id: send_projector_command
+    variables:
+      command: string
+    then:
+      - uart.write:
+          id: uart_bus
+          data: !lambda |-
+            std::vector<uint8_t> cmd;
+            cmd.push_back(0x0D);  // \r
+            for (char c : command) {
+              cmd.push_back(c);
+            }
+            cmd.push_back(0x0D);  // \r
+            return cmd;
+      - delay: 100ms
+      - script.execute: read_projector_response_enhanced
+
+# Status LED (optional - if you have an onboard LED)
+output:
+  - platform: gpio
+    pin: GPIO2  # Most ESP32 boards have LED on GPIO2
+    id: status_led
+
+light:
+  - platform: binary
+    name: "Status LED"
+    id: status_light
+    output: status_led
+    internal: true  # Don't expose to HA, just for local indication

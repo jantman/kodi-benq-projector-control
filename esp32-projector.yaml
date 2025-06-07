@@ -160,22 +160,6 @@ script:
           value: !lambda 'return millis();'
       - delay: 100ms
       - script.execute: read_projector_response_enhanced
-
-# Interval to periodically query projector state
-interval:
-  - interval: 30s
-    then:
-      - script.execute: query_projector_power
-
-# Text sensor to show last projector response (for debugging)
-text_sensor:
-  - platform: template
-    name: "Projector Last Response"
-    id: projector_last_response
-    entity_category: diagnostic
-
-# Enhanced script with better error handling and logging
-script:
   - id: read_projector_response_enhanced
     then:
       - delay: 200ms  # Wait for response
@@ -236,6 +220,19 @@ script:
             return cmd;
       - delay: 100ms
       - script.execute: read_projector_response_enhanced
+
+# Interval to periodically query projector state
+interval:
+  - interval: 30s
+    then:
+      - script.execute: query_projector_power
+
+# Text sensor to show last projector response (for debugging)
+text_sensor:
+  - platform: template
+    name: "Projector Last Response"
+    id: projector_last_response
+    entity_category: diagnostic
 
 # Status LED (optional - if you have an onboard LED)
 output:

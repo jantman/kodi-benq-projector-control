@@ -35,6 +35,14 @@ logger:
 api:
   encryption:
     key: !secret api_encryption_key
+  services:
+    - service: send_projector_command
+      variables:
+        command: string
+      then:
+        - script.execute:
+            id: send_projector_command
+            command: !lambda 'return command;'
 
 ota:
   password: !secret ota_password
@@ -204,8 +212,9 @@ script:
             error_count++;
             id(projector_comm_errors).publish_state(error_count);
           }
+
   - id: send_projector_command
-    variables:
+    parameters:
       command: string
     then:
       - uart.write:

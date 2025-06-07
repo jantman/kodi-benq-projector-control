@@ -173,20 +173,22 @@ script:
       - delay: 200ms  # Wait for response
       - lambda: |-
           std::string response = "";
-          char c;
+          uint8_t byte;
           unsigned long start_time = millis();
           static int error_count = 0;
           
           // Read response with timeout
           while (millis() - start_time < 2000) { // 2 second timeout
             if (id(uart_bus).available()) {
-              id(uart_bus).read_byte(&c);
-              if (c == '\r' || c == '\n') {
-                if (!response.empty()) break;
-                continue;
+              if (id(uart_bus).read_byte(&byte)) {
+                char c = (char)byte;
+                if (c == '\r' || c == '\n') {
+                  if (!response.empty()) break;
+                  continue;
+                }
+                response += c;
+                if (c == '#') break;  // End of BenQ response
               }
-              response += c;
-              if (c == '#') break;  // End of BenQ response
             }
             delay(10);
           }

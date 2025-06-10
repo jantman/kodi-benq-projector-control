@@ -138,6 +138,9 @@ switch:
     lambda: |-
       return id(projector_power_on);
     turn_on_action:
+      - logger.log:
+          format: "Sending projector command: \\r*pow=on#\\r"
+          level: INFO
       - uart.write:
           id: uart_bus
           data: [0x0D, 0x2A, 0x70, 0x6F, 0x77, 0x3D, 0x6F, 0x6E, 0x23, 0x0D]  # \r*pow=on#\r
@@ -147,6 +150,9 @@ switch:
       - delay: 100ms
       - script.execute: read_projector_response_enhanced
     turn_off_action:
+      - logger.log:
+          format: "Sending projector command: \\r*pow=off#\\r"
+          level: INFO
       - uart.write:
           id: uart_bus
           data: [0x0D, 0x2A, 0x70, 0x6F, 0x77, 0x3D, 0x6F, 0x66, 0x66, 0x23, 0x0D]  # \r*pow=off#\r
@@ -160,6 +166,9 @@ switch:
 script:
   - id: query_projector_power
     then:
+      - logger.log:
+          format: "Sending projector command: \\r*pow=?#\\r"
+          level: INFO
       - uart.write:
           id: uart_bus
           data: [0x0D, 0x2A, 0x70, 0x6F, 0x77, 0x3D, 0x3F, 0x23, 0x0D]  # \r*pow=?#\r
@@ -172,45 +181,89 @@ script:
     then:
       - delay: 200ms  # Wait for response
       - lambda: |-
-          std::string response = "";
+          // Clear any pending data first (like Python reset_input_buffer)
+          while (id(uart_bus).available()) {
+            uint8_t dummy;
+            id(uart_bus).read_byte(&dummy);
+          }
+          delay(50);  // Brief pause after clearing
+          
+          std::string echo_line = "";
+          std::string response_line = "";
           uint8_t byte;
           unsigned long start_time = millis();
           static int error_count = 0;
+          int line_count = 0;
           
-          // Read response with timeout
-          while (millis() - start_time < 2000) { // 2 second timeout
-            if (id(uart_bus).available()) {
-              if (id(uart_bus).read_byte(&byte)) {
-                char c = (char)byte;
-                if (c == '\r' || c == '\n') {
-                  if (!response.empty()) break;
-                  continue;
+          // Read two complete lines, just like Python readline() x2
+          while (millis() - start_time < 3000 && line_count < 2) {
+            std::string current_line = "";
+            
+            // Read one complete line (until \r or \n)
+            unsigned long line_start = millis();
+            while (millis() - line_start < 2000) {  // 2 sec timeout per line
+              if (id(uart_bus).available()) {
+                if (id(uart_bus).read_byte(&byte)) {
+                  char c = (char)byte;
+                  
+                  if (c == '\r' || c == '\n') {
+                    // End of line - but only if we have content
+                    if (!current_line.empty()) {
+                      line_count++;
+                      if (line_count == 1) {
+                        echo_line = current_line;
+                        ESP_LOGI("benq_projector", "Echo (line 1): %s", echo_line.c_str());
+                      } else if (line_count == 2) {
+                        response_line = current_line;
+                        ESP_LOGI("benq_projector", "Response (line 2): %s", response_line.c_str());
+                      }
+                      break;  // Move to next line
+                    }
+                    // Skip empty lines (just \r or \n)
+                  } else {
+                    current_line += c;
+                  }
                 }
-                response += c;
-                if (c == '#') break;  // End of BenQ response
+              } else {
+                delay(10);
               }
             }
-            delay(10);
+            
+            // If we didn't get a complete line within timeout, break
+            if (current_line.empty() && millis() - line_start >= 2000) {
+              break;
+            }
           }
           
-          ESP_LOGD("benq_projector", "Raw response: %s", response.c_str());
+          // Process the response (second line), stripping whitespace like Python .strip()
+          std::string response = response_line;
+          // Trim leading and trailing whitespace
+          size_t start = response.find_first_not_of(" \t\r\n");
+          if (start != std::string::npos) {
+            size_t end = response.find_last_not_of(" \t\r\n");
+            response = response.substr(start, end - start + 1);
+          } else {
+            response = "";  // String was all whitespace
+          }
+          
+          ESP_LOGI("benq_projector", "Final response (stripped): '%s'", response.c_str());
           id(projector_last_response).publish_state(response);
           
-          // Parse response and handle errors
+          // Parse response and handle errors (exact matches like Python)
           if (response.empty()) {
             ESP_LOGW("benq_projector", "No response from projector - timeout");
             error_count++;
             id(projector_comm_errors).publish_state(error_count);
-          } else if (response.find("*POW=ON#") != std::string::npos) {
+          } else if (response == "*POW=ON#") {  // Exact match like Python
             ESP_LOGI("benq_projector", "Projector is ON");
             id(projector_power_on) = true;
             id(projector_power_state).publish_state(true);
-          } else if (response.find("*POW=OFF#") != std::string::npos) {
+          } else if (response == "*POW=OFF#") {  // Exact match like Python
             ESP_LOGI("benq_projector", "Projector is OFF");
             id(projector_power_on) = false;
             id(projector_power_state).publish_state(false);
           } else {
-            ESP_LOGW("benq_projector", "Unknown response: %s", response.c_str());
+            ESP_LOGW("benq_projector", "Unknown response: '%s'", response.c_str());
             error_count++;
             id(projector_comm_errors).publish_state(error_count);
           }
@@ -219,6 +272,10 @@ script:
     parameters:
       command: string
     then:
+      - logger.log:
+          format: "Sending custom projector command: %s"
+          args: ['command.c_str()']
+          level: INFO
       - uart.write:
           id: uart_bus
           data: !lambda |-
